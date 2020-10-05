@@ -1,218 +1,177 @@
-//# CS429Project1
-//server code
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <errno.h>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-#include <sys/wait.h>
-#include <signal.h>
+//# CS429Project1   client side of the socket
+#include<stdio.h>
+#include<stdlib.h>
+#include<sys/types.h>  //definition of the socket function we are using
+#include<sys/socket.h>
+#include<netinet/in.h>//to store address information  
 
-int getaddrinfo(const char *node,     // e.g. "www.example.com" or IP or host name to conncet to
-                    const char *service,  // e.g. "http" or port number or a particular service
-                    const struct addrinfo *hints,
-                    struct addrinfo **res);
-                    
-/*Here’s a sample call if you’re a server who wants to listen on your host’s IP address, port 3490. 
-Note that this doesn’t actually do any listening or network setup; it merely sets up structures we’ll use later:*/
+int main(){
+//create socket
+int network_socket;                                   //integer to hold the socket descriptors
+//create socket function
+network_socket=socket(AF_INET,SOCK_STREAM,0);         //first param is the domain of the socket,second param is the type of the socket
+                                                      //using default protocol 0 and streaming TCP for the third param
+//specify an address for the socket
+//we define the address in this section
+struct sockaddr_in server_address;                    
+server_address.sin_family=AF_INET;                    //sets family of the address
+server_address.sin_port=htons(9001);                  //specify the port we are going to connect to
+                                                      //hton function will take care of converting the port number(9001 or 9002 are the operating system port) 
+                                                      //to be understood with our structure
 
-int status;
-struct addrinfo hints;
-struct addrinfo *servinfo;  // will point to the results
+server_address.sin_addr.s_addr=INADDR_ANY;            //connect to our local machine(s_addr is the sever address)
+//connect returns an integer                          //s_addr is the real server we will be connecting to
+int connection_status=connect(network_socket,(struct sockaddr *) &server_address,sizeof(server_address));       //cast out socket as the second parameters to
+//check for error with the connection
+if(connection_status==-1){
+    printf("there was an error connecting to the remote socket");
+}
+//receive data from the server
+char server_response[256];
+recv(network_socket,& server_response,sizeof(server_response),0);    // the first param is the socket the second is a place to hlod the data to get back to
+                                                                     // and we pass the address of that string to our function, adn third is the size of that buffer
+                                                                     //and the last one is an optional flag which we make it to 0 
+//print out the server's response
+printf("the server sent the data a:%s\n",server_response);
+//close the socket
+close(network_socket);
+network_socket.close();
 
-memset(&hints, 0, sizeof hints); // make sure the struct is empty
-hints.ai_family = AF_UNSPEC;     // don't care IPv4 or IPv6
-hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
-hints.ai_flags = AI_PASSIVE;     // fill in my IP for me
-
-if ((status = getaddrinfo(NULL, "3490", &hints, &servinfo)) != 0) {
-    fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(status));
-    exit(1);
+return 0;
 }
 
-// servinfo now points to a linked list of 1 or more struct addrinfos
+//server side of the socket
+//we need another file for this part
 
-// ... do everything until you don't need servinfo anymore ....
+#include<stdio.h>
+#include<stdlib.h>
+#include<sys/types.h>
+#include<sys/socket.h>
+#include<netinet/in.h>//to store address information
 
-freeaddrinfo(servinfo); // free the linked-list
-/*Here’s a sample call if you’re a client who wants to connect to a particular server, say “www.example.net” port 3490. Again, this doesn’t actually connect, but it sets up the structures we’ll use later:*/
+int main(){
 
-int status;
-struct addrinfo hints;
-struct addrinfo *servinfo;  // will point to the results
+char server_message[256]="you have reached the server";         //holds the strings which will be sent to any clients we connect
+//create the server socket
+int server_socket;
+server_socket=socket(AF_INET,SOCK_STREAM,0);
+//this integer holds the client socket
+int client_socket;
+//define the server address
+struct sockaddr_in server_address;
+server_address.sin_family=AF_INET;
+server_address.sin_port=htons(9001);
+server_address.sin_addr.s_addr=INADDR_ANY;                      //INADDR  any address in a local machine
 
-memset(&hints, 0, sizeof hints); // make sure the struct is empty
-hints.ai_family = AF_UNSPEC;     // don't care IPv4 or IPv6
-hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
+//bind the socket to our specified IP and port
+bind(server_socket,(struct sockaddr*) &server_address, sizeof(server_address));
 
-// get ready to connect
-status = getaddrinfo("www.example.net", "3490", &hints, &servinfo);
+listen(server_socket,5);                                      //5 could be any number that we want our connection waiting for a at time
 
-// servinfo now points to a linked list of 1 or more struct addrinfos
+fd_set mainServer,copyServer;
 
-// etc.
+FD_ZERO(&mainServer);
 
-//Dmitry there is a cool program called show ip in Beej I ran it and showed the ip address of a www.... whatever you need try it!
-
-int s;
-struct addrinfo hints, *res;
-
-// do the lookup
-// [pretend we already filled out the "hints" struct]
-getaddrinfo("www.example.com", "http", &hints, &res);
-
-// again, you should do error-checking on getaddrinfo(), and walk
-// the "res" linked list looking for valid entries instead of just
-// assuming the first one is good (like many of these examples do).
-// See the section on client/server for real examples.
-
-s = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-
-Here is the synopsis for the bind() system call:
-
-    #include <sys/types.h>
-    #include <sys/socket.h>
-    
-    int bind(int sockfd, struct sockaddr *my_addr, int addrlen);
-
-//sockfd is the socket file descriptor returned by socket(). my_addr is a pointer to a struct sockaddr that contains information about your address, namely, port and IP //address. addrlen is the length in bytes of that address.
-
-//an example that binds the socket to the host the program is running on, port 3490:
-
-struct addrinfo hints, *res;
-int sockfd;
-
-// first, load up address structs with getaddrinfo():
-
-memset(&hints, 0, sizeof hints);
-hints.ai_family = AF_UNSPEC;  // use IPv4 or IPv6, whichever
-hints.ai_socktype = SOCK_STREAM;
-hints.ai_flags = AI_PASSIVE;     // fill in my IP for me
-
-getaddrinfo(NULL, "3490", &hints, &res);
-
-// make a socket:
-
-sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-
-// bind it to the port we passed in to getaddrinfo():
-
-bind(sockfd, res->ai_addr, res->ai_addrlen);
-
-//The connect() call is as follows:
-
-    #include <sys/types.h>
-    #include <sys/socket.h>
-    
-    int connect(int sockfd, struct sockaddr *serv_addr, int addrlen); 
-
-//an example where we make a socket connection to “www.example.com”, port 3490:
-
-struct addrinfo hints, *res;
-int sockfd;
-
-// first, load up address structs with getaddrinfo():
-
-memset(&hints, 0, sizeof hints);
-hints.ai_family = AF_UNSPEC;
-hints.ai_socktype = SOCK_STREAM;
-
-getaddrinfo("www.example.com", "3490", &hints, &res);
-
-// make a socket:
-
-sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-
-// connect!
-
-connect(sockfd, res->ai_addr, res->ai_addrlen);
-
- int listen(int sockfd, int backlog); 
- 
- #include <sys/types.h>
-    #include <sys/socket.h>
-    
-    int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen); 
-    
-    //how to use accept
-#include <string.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-
-#define MYPORT "3490"  // the port users will be connecting to
-#define BACKLOG 10     // how many pending connections queue will hold
-
-int main(void)
+FD_SET(server_socket, &mainServer);
+int msgCounter=0;
+while(1)
 {
-    struct sockaddr_storage their_addr;
-    socklen_t addr_size;
-    struct addrinfo hints, *res;
-    int sockfd, new_fd;
+	copyServer = mainServer;
 
-    // !! don't forget your error checking for these calls !!
+	if(select(server_socket+1,&copyServer,NULL,NULL,NULL)<0)
+	{
+		perror("select failed\n");
+		exit(EXIT_FAILURE);
+	}
 
-    // first, load up address structs with getaddrinfo():
+	for(int i = 0; i<FD_SETSIZE; i++)
+	{
+		if(FD_ISSET(i,&copyServer))
+		{
+			if(i == server_socket)
+			{
+				client_socket = accept(server_socket,NULL,NULL);
+				send(client_socket,server_message,sizeof(server_message),0);
+				msgCounter++;
+				if(msgCounter>5){
+					close(server_socket);
+					exit(0);
+				}
+			}
+		}
+	}
 
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC;  // use IPv4 or IPv6, whichever
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE;     // fill in my IP for me
+}
 
-    getaddrinfo(NULL, MYPORT, &hints, &res);
 
-    // make a socket, bind it, and listen on it:
 
-    sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-    bind(sockfd, res->ai_addr, res->ai_addrlen);
-    listen(sockfd, BACKLOG);
+client_socket=accept(server_socket,NULL,NULL);                    //first param the socket we are accepting the connections 
+                                                                  //these NULL could be structures to tell us where the client is coming from
+                                                                  //it contains the client address
+ //send message
+send(client_socket,server_message,sizeof(server_message),0);      //first param is the socket we are sending data on,second param is the actual data
+                                                                  //because we already defined a server message will use that
+close(server_socket);
+return 0;
+}
 
-    // now accept an incoming connection:
+//by running these we should have a two way connection between client and server
+//as the insrtuction says we can run these with two terminal windows
+//I am not sure if I know how to do that but it seems simple
+// put the screen in two parts
+//on left run the server by: make tcp_server (I am not sure if this is the same as compiling with gcc?
+//on right run the client by: make tcp_client
+//first start with tcp_server type: ./tcp_server
+//then in client part : ./tcp_client 
+then you will see the a message in client side
 
-    addr_size = sizeof their_addr;
-    new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &addr_size);
 
-    // ready to communicate on socket descriptor new_fd!
-    .
-    .
-    .
-int send(int sockfd, const void *msg, int len, int flags);
 
-Some sample code might be:
+new loop which makes our program work like a chatroom
+//listening is server_socket
+//master is mainServer
 
-char *msg = "Beej was here!";
-int len, bytes_sent;
-.
-.
-.
-len = strlen(msg);
-bytes_sent = send(sockfd, msg, len, 0);
-.
-int recv(int sockfd, void *buf, int len, int flags);
+while(true){
 
-int sendto(int sockfd, const void *msg, int len, unsigned int flags,
-               const struct sockaddr *to, socklen_t tolen); 
-int recvfrom(int sockfd, void *buf, int len, unsigned int flags,
-                 struct sockaddr *from, int *fromlen);              
+  fd_set copy=mainServer; //in our code mainServer
+  int socketCount=select(0,&copy,NULL,NULL,NULL);
+  for(int i=0;i<socketCount;i++){
+    socket sock=Copy.fd_array[i];
+    if(sock==listening){
+        //accept a new connection 
+        SOCKET client=accept(listening,NULL,NULL,NULL);
+        //add the new connection to the list of connected clients
+        FD_SET(client, &mainServer);
+        //send welcom message the the connected client
+        string welcomeMsg="welcome to the awsome chat server";
+        send(client,welcome.c_str(),welcomMsg.size()+1,0)
+    }//if
+    else{
+          charbuf[4096];
+          zeroMemory(buf,4096);
+          //receiving message
+          int bytesIn=rec(Sock,buf,4096,0);
+          if(bytesIn<=0){
+            //drop the client
+            closeSocket(sock);
+            FD_CLR(sock,&mainServer);
+          }//if
+          else{
+            //send message to other clients and not definately to the listening socket
+            for(int i=0;i<master.fd_count;i++){
+              Socket outSock=mainServer.fd_array[i];
+              if(outSock!=listening && outSock!=Sock){
+                 //this part is so c++
+                 //this part shows some client id
+                 ostringStream ss;
+                 ss<<"socket #"<<sock<<":"<<buf<<"\r\n;//I have not worked with strings in c. how can we change it to c?
+                 string strout=ss.str();
+                 send(outSock,strOut.c_str(),strOut.size()+1,0);
+              }//if
+            }//for
+          }//else
+    }//else
+  }//for
+}//while  
 
-close(sockfd);
-//Just in case you want a little more control over how the socket closes, you can use the shutdown() function. It allows you to cut off communication in a certain direction, //or both ways (just like close() does). Synopsis:
 
-    int shutdown(int sockfd, int how);
-
-//The function getpeername() will tell you who is at the other end of a connected stream socket. The synopsis:
-
-    #include <sys/socket.h>
-    
-    int getpeername(int sockfd, struct sockaddr *addr, int *addrlen);
-    
-//getpeername() is the function gethostname(). It returns the name of the computer that your program is running on
-
- #include <unistd.h>
-    
-    int gethostname(char *hostname, size_t size);
